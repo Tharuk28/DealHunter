@@ -1,69 +1,99 @@
 import requests
 from bs4 import BeautifulSoup
+import csv
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+st.image("D:\Tharuk\Deal Hunter\Scraping\WhatsApp Image 2024-11-18 at 14.08.49_ecc807e9.jpg", use_column_width=True)
 
-# --- STORE NAMES ---
-stores = ["Flipkart", "Amazon", "Paytm", "Foodpanda", "Freecharge", "Paytmmall"]
 
-# --- SESSION STATE INITIALIZATION ---
-if "scraped_data" not in st.session_state:
-    st.session_state["scraped_data"] = pd.DataFrame()
+st.markdown(
+    """
+    <style>
+    .black-strip {
+        background-color: black;
+        color: white;
+        padding: 20px;
+        width: 100%;
+        text-align: center;
+        font-size: 50px; 
+        font-weight: bold;
+        border-radius: 2px;
+        display: inline-block;
+    }
+    .stSelectbox label {
+        background-color: black; 
+        padding: 10px; 
+        border-radius: 2px; 
+        color: white; 
+        font-size: 10px;
+    }
+    .stNumberInput label {
+        background-color: black; 
+        color: white; 
+        padding: 10px;
+        border-radius: 2px; 
+        font-weight: bold; 
+    }
+    .stButton > button {
+        background-color: black;
+        color: white;
+    }
+    .stDownloadButton > button {
+        background-color: black;
+        color: white;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-if "selected_store" not in st.session_state:
-    st.session_state["selected_store"] = None
 
-if "current_page" not in st.session_state:
-    st.session_state["current_page"] = "Scrape Data"  # Default page
 
-# --- SIDEBAR NAVIGATION ---
-st.sidebar.title("Navigation")
-if st.sidebar.button("Data Scraping"):
-    st.session_state["current_page"] = "Scrape Data"
 
-if st.sidebar.button("Dashboard"):
-    st.session_state["current_page"] = "Dashboard"
+st.markdown('<div class="black-strip"> Deals Scraper </div>', unsafe_allow_html=True)
+st.markdown(
+    """
+    <div style="background-color: skyblue; padding: 5px; border-radius: 2px; font-size: 4px; text-align: center;">
+        <h3 style="color: black;">Choose a store and enter the page range </h3>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-if st.sidebar.button("About"):
-    st.session_state["current_page"] = "About"
+store = ["All_store","Flipkart", "Amazon", "Paytm", "Foodpanda", "Freecharge", "Paytmmall"]
+store_name = st.selectbox("Select Store", store)
+start = st.number_input('Enter start page number:', min_value=1, step=1, value=1)
 
-# --- SCRAPE DATA PAGE ---
-if st.session_state["current_page"] == "Scrape Data":
-    st.title("Deal Hunter")
-    st.write("Choose a store and enter the page range you want to scrape")
+end =st.number_input('Enter end page number:', min_value=start, step=1, value=start)
 
-    # Store selection and page input
-    store_name = st.selectbox("Select Store", stores)
-    start_page = st.text_input("Starting Page", "1")
-    end_page = st.text_input("Ending Page", "1")
+csv_filename = "product_deals.csv"
+submit_button = st.button("Submit")
 
-    if st.button("Scrape Data"):
-        try:
-            start = int(start_page)
-            end = int(end_page)
+if submit_button:
+    try:
+        if end > 1703:
+            st.error("The DealsHeaven Website has only 1703 Pages.")
+        else:
+            with open(csv_filename, mode="w", newline="", encoding="utf-8") as file:
+                writer = csv.writer(file)
+                writer.writerow(["Title", "Image", "Price", "Discount", "Special Price", "Link", "Rating"])
 
-            if start <= 0 or end <= 0:
-                st.error("Page numbers must be greater than zero.")
-            elif start > end:
-                st.error("Starting page must be less than or equal to ending page.")
-            elif end > 1703:
-                st.error("The DealsHeaven Website has only 1703 Pages!")
-            else:
-                scraped_data = []
                 for current_page in range(start, end + 1):
-                    url = f"https://dealsheaven.in/store/{store_name.lower()}?page={current_page}"
+                    if store_name=="All_store":
+                        url= f"https://dealsheaven.in/?page={current_page}"
+                    else:
+                        url = f"https://dealsheaven.in/store/{store_name.lower()}?page={current_page}"
                     response = requests.get(url)
 
                     if response.status_code != 200:
-                        st.warning(f"Failed to retrieve page {current_page}. Skipping...")
+                        st.warning(f"Failed to retrieve page {current_page}. ")
                         continue
 
                     soup = BeautifulSoup(response.text, 'html.parser')
                     all_items = soup.find_all("div", class_="product-item-detail")
 
                     if not all_items:
-                        st.warning(f"No products found on page {current_page}. Stopping scraper.")
+                        st.warning(f"No products found on page {current_page}.")
                         break
 
                     for item in all_items:
@@ -106,48 +136,16 @@ if st.session_state["current_page"] == "Scrape Data":
                         else:
                             product['Rating'] = "N/A"
 
-                        scraped_data.append(product)
+                        writer.writerow([product.get('Title', 'N/A'), f'=HYPERLINK("{product.get("Image", "N/A")}","Image")', product.get('Price', 'N/A'), product.get('Discount', 'N/A'), product.get('Special Price', 'N/A'), f'=HYPERLINK("{product.get("Link", "N/A")}","Link")', product.get('Rating', 'N/A')])
 
-                # Save scraped data to session state
-                st.session_state["scraped_data"] = pd.DataFrame(scraped_data)
-                st.session_state["selected_store"] = store_name
-                st.success("Data scraped successfully! Navigate to the Dashboard to view the results.")
+            st.write("Data scraping and saving completed.")
+            with open(csv_filename, "r", encoding="utf-8") as file:
+                st.download_button(
+                    label="Download CSV",
+                    data=file,
+                    file_name=csv_filename,
+                    mime="text/csv"
+                )
 
-        except ValueError:
-            st.error("Please enter valid integers for the starting and ending page.")
-
-# --- DASHBOARD PAGE ---
-elif st.session_state["current_page"] == "Dashboard":
-    st.title("Dashboard")
-    if not st.session_state["scraped_data"].empty:
-        data = st.session_state["scraped_data"]
-        st.write("### Scraped Data Overview")
-        st.dataframe(data)
-
-        # Prepare data for pie chart
-        discount_data = data["Discount"].value_counts().reset_index()
-        discount_data.columns = ["Discount", "Count"]
-        discount_data = discount_data[discount_data["Discount"] != "N/A"]
-
-        if not discount_data.empty:
-            # Pie chart
-            st.write("### Discount Split")
-            fig = px.pie(discount_data, values="Count", names="Discount", title="Discount Distribution")
-            st.plotly_chart(fig)
-        else:
-            st.warning("No discount data available for visualization.")
-    else:
-        st.warning("No data available. Please scrape the data first.")
-
-# --- ABOUT PAGE ---
-elif st.session_state["current_page"] == "About":
-    st.title("About")
-
-    # Dynamic content based on selected store
-    if st.session_state["selected_store"]:
-        store = st.session_state["selected_store"]
-        st.write(f"### About {store}")
-        st.write(f"This application helps you scrape deals from **{store}** and visualize them in an interactive dashboard. Here, you can find discounts, special prices, and ratings of products on {store}.")
-    else:
-        st.write("### About Deal Hunter")
-        st.write("Select a store from the Scrape Data page to view more about its deals and products.")
+    except ValueError:
+        st.error("Please enter valid integers for the starting and ending page.")
